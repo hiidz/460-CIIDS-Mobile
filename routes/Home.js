@@ -11,7 +11,8 @@ import {
 } from "react-native";
 import { useState, useEffect } from "react";
 import { StatusBar } from "expo-status-bar";
-import Icon from "react-native-vector-icons/AntDesign";
+import ADIcon from "react-native-vector-icons/AntDesign";
+import FeatherIcon from "react-native-vector-icons/Feather";
 import axios from "axios";
 
 const { width } = Dimensions.get("window");
@@ -24,29 +25,45 @@ const { width } = Dimensions.get("window");
 export const HomeScreen = ({ navigation, route }) => {
   const [lockid, setLockid] = useState();
   const [acl, setAcl] = useState();
+  const [isSystemEnabled, setIsSystemEnabled] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const response = await axios.get(`http://192.168.1.66:8080/lock/${lockid}/acl`);
+        const response = await axios.get(
+          `http://192.168.158.242:8080/lock/${lockid}/acl`
+        );
         setAcl(response.data);
       } catch (error) {
         console.error("Error:", error);
       }
     };
-    lockid ? fetchData() : null;
+
+    // const fetchSystemData = async () => {
+    //   try {
+    //     const response = await axios.get(`http://192.168.158.242:8080/lock/${lockid}`);
+    //     setIsSystemEnabled(response.data);
+    //   } catch (error) {
+    //     console.error("Error:", error);
+    //   }
+    // };
+
     setLockid(route.params.lockid);
+    lockid ? fetchData() : null;
   }, [lockid]);
 
   const addACLUser = () => {
     const patchData = async (obj) => {
       try {
-        const response = axios.patch(`http://192.168.1.66:8080/lock/${lockid}/acl/add`, {
-          acl: obj,
-        });
-        console.log('Response:', response.data);
+        const response = axios.patch(
+          `http://192.168.158.242:8080/lock/${lockid}/acl/add`,
+          {
+            acl: obj,
+          }
+        );
+        console.log("Response:", response.data);
       } catch (error) {
-        console.error('Error:', error);
+        console.error("Error:", error);
       }
     };
 
@@ -61,6 +78,42 @@ export const HomeScreen = ({ navigation, route }) => {
 
     toggleModalVisibility();
   };
+
+  const delACLUser = (aclName) => {
+    const patchData = async (objName) => {
+      try {
+        console.log(lockid, objName);
+        const response = axios.patch(
+          `http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`
+        );
+        console.log("Response:", response.data);
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
+
+    patchData(aclName);
+
+    const oldACLState = acl;
+    const updatedACLState = oldACLState.filter((obj) => obj.name !== aclName);
+    setAcl(updatedACLState);
+
+    console.log("delete");
+  };
+
+  const toggleShield = () => {
+    // const patchData = async (objName) => {
+    //   try {
+    //     const response = axios.patch(`http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`);
+    //   } catch (error) {
+    //     console.error('Error:', error);
+    //   }
+    // };
+
+    // patchData(aclName);
+    setIsSystemEnabled(!isSystemEnabled);
+  };
+
   const [isModalVisible, setModalVisible] = useState(false);
   const toggleModalVisibility = () => {
     setModalVisible(!isModalVisible);
@@ -80,8 +133,15 @@ export const HomeScreen = ({ navigation, route }) => {
     }
   };
 
+  function navigateToLogScreen() {
+    // navigate somewhere
+    // console.log("Hello!");
+    navigation.navigate("Logs", { lockid: lockid });
+  }
+
   return (
     <View style={styles.container}>
+      <Button title="View Logs" onPress={navigateToLogScreen} />
       <Text>Welcome</Text>
       <Text>1. User can add/register more locks here.</Text>
       <Text>2. Can view and click on individual locks</Text>
@@ -97,14 +157,28 @@ export const HomeScreen = ({ navigation, route }) => {
 
       <FlatList
         data={acl}
-        renderItem={({ item }) => <Item title={item.name} />}
+        renderItem={({ item }) => (
+          <Item title={item.name} onClick={delACLUser} />
+        )}
         keyExtractor={(item) => item.id}
       />
       <TouchableOpacity
         style={styles.floatingActionButton}
         onPress={toggleModalVisibility}
       >
-        <Icon name="adduser" size={30} color="white" />
+        <ADIcon name="adduser" size={30} color="white" />
+      </TouchableOpacity>
+
+      <TouchableOpacity
+        style={
+          isSystemEnabled
+            ? styles.floatingActionButtonLeftEnabled
+            : styles.floatingActionButtonLeftDisabled
+        }
+        onPress={toggleShield}
+      >
+        <FeatherIcon name="shield" size={30} color="white" />
+        {isSystemEnabled ? <Text style={{color:"white"}}>Enabled</Text> : <Text style={{color:"white"}}>Disabled</Text>}
       </TouchableOpacity>
 
       <Modal
@@ -133,8 +207,6 @@ export const HomeScreen = ({ navigation, route }) => {
             style={styles.textInput}
             onChangeText={(value) => onInputChange("id", value)}
           />
-
-          {/** This button is responsible to close the modal */}
           <View style={styles.aclForm}>
             <Button title="Close" onPress={toggleModalVisibility} />
             <Button title="Save" onPress={addACLUser} />
@@ -147,11 +219,20 @@ export const HomeScreen = ({ navigation, route }) => {
   );
 };
 
-const Item = ({ title }) => (
+const Item = ({ title, onClick }) => (
   <View style={styles.item}>
     <Text style={styles.title}>{title}</Text>
+    <TouchableOpacity
+      // style={styles.floatingActionButton}
+      onPress={() => {
+        onClick(title);
+      }}
+    >
+      <ADIcon name="delete" size={30} color="black" />
+    </TouchableOpacity>
   </View>
 );
+// ids = [321652097501,785775930251]
 
 const styles = StyleSheet.create({
   container: {
@@ -166,6 +247,9 @@ const styles = StyleSheet.create({
     padding: 20,
     marginVertical: 8,
     marginHorizontal: 16,
+    display: "flex",
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
   title: {
     fontSize: 32,
@@ -179,6 +263,28 @@ const styles = StyleSheet.create({
     right: 20,
     height: 70,
     backgroundColor: "blue",
+    borderRadius: 100,
+  },
+  floatingActionButtonLeftEnabled: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 70,
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    height: 70,
+    backgroundColor: "green",
+    borderRadius: 100,
+  },
+  floatingActionButtonLeftDisabled: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 70,
+    position: "absolute",
+    bottom: 30,
+    left: 20,
+    height: 70,
+    backgroundColor: "red",
     borderRadius: 100,
   },
   modalView: {

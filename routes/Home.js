@@ -17,11 +17,6 @@ import axios from "axios";
 
 const { width } = Dimensions.get("window");
 
-// const ACLData = [
-//   { name: "Bobby", group: "Admin", id: 321652097501 },
-//   // { name: "Larry", group: "Family", id: 785775930251 },
-// ];
-
 export const HomeScreen = ({ navigation, route }) => {
   const [lockid, setLockid] = useState();
   const [acl, setAcl] = useState();
@@ -39,23 +34,24 @@ export const HomeScreen = ({ navigation, route }) => {
       }
     };
 
-    // const fetchSystemData = async () => {
-    //   try {
-    //     const response = await axios.get(`http://192.168.158.242:8080/lock/${lockid}`);
-    //     setIsSystemEnabled(response.data);
-    //   } catch (error) {
-    //     console.error("Error:", error);
-    //   }
-    // };
+    const fetchSystemData = async () => {
+      try {
+        const response = await axios.get(`http://192.168.158.242:8080/lock/${lockid}/systemSecurity`);
+        setIsSystemEnabled(response.data);
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
 
     setLockid(route.params.lockid);
     lockid ? fetchData() : null;
+    lockid ? fetchSystemData() : null;
   }, [lockid]);
 
   const addACLUser = () => {
     const patchData = async (obj) => {
       try {
-        const response = axios.patch(
+        const response = await axios.patch(
           `http://192.168.158.242:8080/lock/${lockid}/acl/add`,
           {
             acl: obj,
@@ -83,7 +79,7 @@ export const HomeScreen = ({ navigation, route }) => {
     const patchData = async (objName) => {
       try {
         console.log(lockid, objName);
-        const response = axios.patch(
+        const response = await axios.patch(
           `http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`
         );
         console.log("Response:", response.data);
@@ -102,16 +98,40 @@ export const HomeScreen = ({ navigation, route }) => {
   };
 
   const toggleShield = () => {
-    // const patchData = async (objName) => {
-    //   try {
-    //     const response = axios.patch(`http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`);
-    //   } catch (error) {
-    //     console.error('Error:', error);
-    //   }
-    // };
+    const patchData = async () => {
+      console.log(isSystemEnabled);
+      try {
+        const response = await axios.patch(
+          `http://192.168.158.242:8080/lock/${lockid}/systemSecurity`,
+          { isSystemEnabled: !isSystemEnabled }
+        );
 
-    // patchData(aclName);
-    setIsSystemEnabled(!isSystemEnabled);
+        console.log(response.data);
+
+        if (response) {
+          setIsSystemEnabled(response.data.isSystemEnabled);
+        }
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
+
+    patchData();
+  };
+
+  const disableSiren = () => {
+    const patchData = async (objName) => {
+      try {
+        const response = await axios.patch(
+          `http://192.168.158.242:8080/lock/${lockid}/siren`
+        );
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
+
+    patchData(lockid);
+    console.log("disabled siren");
   };
 
   const [isModalVisible, setModalVisible] = useState(false);
@@ -178,8 +198,13 @@ export const HomeScreen = ({ navigation, route }) => {
         onPress={toggleShield}
       >
         <FeatherIcon name="shield" size={30} color="white" />
-        {isSystemEnabled ? <Text style={{color:"white"}}>Enabled</Text> : <Text style={{color:"white"}}>Disabled</Text>}
+        {isSystemEnabled ? (
+          <Text style={{ color: "white" }}>Enabled</Text>
+        ) : (
+          <Text style={{ color: "white" }}>Disabled</Text>
+        )}
       </TouchableOpacity>
+      <Button title="Disable siren" onPress={disableSiren} />
 
       <Modal
         animationType="slide"

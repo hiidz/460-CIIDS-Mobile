@@ -10,9 +10,10 @@ export const LogScreen = ({ route }) => {
     const fetchData = async () => {
       try {
         const response = await axios.get(
-          `http://192.168.158.242:8080/lock/${lockid}/logs`
+          `http://192.168.158.242:8080/logs/${lockid}`
         );
-        setLogs(response.data);
+
+        setLogs(response.data.map((obj) => obj.message));
       } catch (error) {
         console.error("Error:", error);
       }
@@ -24,7 +25,10 @@ export const LogScreen = ({ route }) => {
 
   return (
     <View style={styles.container}>
-      <Text>{lockid}{logs}</Text>
+      <Text>
+        {lockid}
+        {logs ? logs.map((obj) => <Text>{obj}</Text>) : null}
+      </Text>
     </View>
   );
 };

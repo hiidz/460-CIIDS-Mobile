@@ -9,25 +9,114 @@ import {
   Button,
   Dimensions,
 } from "react-native";
-import { useState, useEffect } from "react";
+
 import { StatusBar } from "expo-status-bar";
 import ADIcon from "react-native-vector-icons/AntDesign";
 import FeatherIcon from "react-native-vector-icons/Feather";
 import axios from "axios";
 
+import { useState, useEffect, useRef, useLayoutEffect } from "react";
+import * as Device from "expo-device";
+import * as Notifications from "expo-notifications";
 const { width } = Dimensions.get("window");
 
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+async function registerForPushNotificationsAsync() {
+  let token;
+
+  if (Platform.OS === "android") {
+    await Notifications.setNotificationChannelAsync("default", {
+      name: "default",
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: "#FF231F7C",
+    });
+  }
+
+  if (Device.isDevice) {
+    const { status: existingStatus } =
+      await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
+    if (existingStatus !== "granted") {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
+    }
+    if (finalStatus !== "granted") {
+      alert("Failed to get push token for push notification!");
+      return;
+    }
+    token = (await Notifications.getDevicePushTokenAsync()).data;
+    console.log(token);
+  } else {
+    alert("Must use physical device for Push Notifications");
+  }
+
+  return token;
+}
 export const HomeScreen = ({ navigation, route }) => {
   const [lockid, setLockid] = useState();
   const [acl, setAcl] = useState();
   const [isSystemEnabled, setIsSystemEnabled] = useState(true);
+  const [expoPushToken, setExpoPushToken] = useState("");
+  const [notification, setNotification] = useState(false);
+  const notificationListener = useRef();
+  const responseListener = useRef();
+
+  useEffect(() => {
+    registerForPushNotificationsAsync().then((token) => {
+      const postData = async () => {
+        try {
+          const response = await axios.post(
+            // `http://192.168.158.242:8080/registerPushToken`,
+            `http://192.168.1.66:8080/registerPushToken`,
+            {
+              lockid: lockid,
+              token: token,
+            }
+          );
+          
+          setExpoPushToken(token);
+        } catch (error) {
+          console.error("Error:", error);
+        }
+      };
+
+      lockid ? postData() : null;
+    });
+
+    notificationListener.current =
+      Notifications.addNotificationReceivedListener((notification) => {
+        setNotification(notification);
+      });
+
+    responseListener.current =
+      Notifications.addNotificationResponseReceivedListener((response) => {
+        disableSiren();
+        console.log(response);
+      });
+
+    return () => {
+      Notifications.removeNotificationSubscription(
+        notificationListener.current
+      );
+      Notifications.removeNotificationSubscription(responseListener.current);
+    };
+  }, [lockid]);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
         const response = await axios.get(
-          `http://192.168.158.242:8080/lock/${lockid}/acl`
+          // `http://192.168.158.242:8080/lock/${lockid}/acl`
+          `http://192.168.1.66:8080/lock/${lockid}/acl`
         );
+
         setAcl(response.data);
       } catch (error) {
         console.error("Error:", error);
@@ -36,7 +125,10 @@ export const HomeScreen = ({ navigation, route }) => {
 
     const fetchSystemData = async () => {
       try {
-        const response = await axios.get(`http://192.168.158.242:8080/lock/${lockid}/systemSecurity`);
+        const response = await axios.get(
+          `http://192.168.1.66:8080/lock/${lockid}/systemSecurity`
+          // `http://192.168.158.242:8080/lock/${lockid}/systemSecurity`
+        );
         setIsSystemEnabled(response.data);
       } catch (error) {
         console.error("Error:", error);
@@ -48,11 +140,41 @@ export const HomeScreen = ({ navigation, route }) => {
     lockid ? fetchSystemData() : null;
   }, [lockid]);
 
+  useLayoutEffect(() => {
+    navigation.setOptions({
+      headerLeft: (props) => (
+        <Button
+          {...props}
+          title="Back"
+          onPress={async () => {
+            await axios
+              .post(
+                // `http://192.168.158.242:8080/registerPushToken`,
+                `http://192.168.1.66:8080/registerPushToken`,
+                {
+                  lockid: lockid,
+                  token: null,
+                }
+              )
+              .catch((error) => {
+                console.error("Error:", error);
+              });
+            navigation.goBack();
+          }}
+          // make sure you destructure the navigation variable from the props
+          // or otherwise you'll have to write it like this
+          // onPress={() => props.navigation.goBack()}
+        />
+      ),
+    });
+  }, [navigation, lockid]);
+
   const addACLUser = () => {
     const patchData = async (obj) => {
       try {
         const response = await axios.patch(
-          `http://192.168.158.242:8080/lock/${lockid}/acl/add`,
+          // `http://192.168.158.242:8080/lock/${lockid}/acl/add`,
+          `http://192.168.1.66:8080/lock/${lockid}/acl/add`,
           {
             acl: obj,
           }
@@ -80,7 +202,8 @@ export const HomeScreen = ({ navigation, route }) => {
       try {
         console.log(lockid, objName);
         const response = await axios.patch(
-          `http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`
+          // `http://192.168.158.242:8080/lock/${lockid}/acl/delete/${objName}`
+          `http://192.168.1.66:8080/lock/${lockid}/acl/delete/${objName}`
         );
         console.log("Response:", response.data);
       } catch (error) {
@@ -102,7 +225,8 @@ export const HomeScreen = ({ navigation, route }) => {
       console.log(isSystemEnabled);
       try {
         const response = await axios.patch(
-          `http://192.168.158.242:8080/lock/${lockid}/systemSecurity`,
+          // `http://192.168.158.242:8080/lock/${lockid}/systemSecurity`,
+          `http://192.168.1.66:8080/lock/${lockid}/systemSecurity`,
           { isSystemEnabled: !isSystemEnabled }
         );
 
@@ -123,7 +247,8 @@ export const HomeScreen = ({ navigation, route }) => {
     const patchData = async (objName) => {
       try {
         const response = await axios.patch(
-          `http://192.168.158.242:8080/lock/${lockid}/siren`
+          // `http://192.168.158.242:8080/lock/${lockid}/siren`
+          `http://192.168.1.66:8080/lock/${lockid}/siren`
         );
       } catch (error) {
         console.error("Error:", error);
@@ -162,7 +287,12 @@ export const HomeScreen = ({ navigation, route }) => {
   return (
     <View style={styles.container}>
       <Button title="View Logs" onPress={navigateToLogScreen} />
-      <Text>Welcome</Text>
+      <Button title="Disable siren" onPress={disableSiren} />
+      {/* <Button
+        title="Simulatae notification"
+        onPress={schedulePushNotification}
+      /> */}
+      {/* <Text>Welcome</Text>
       <Text>1. User can add/register more locks here.</Text>
       <Text>2. Can view and click on individual locks</Text>
       <Text>
@@ -173,7 +303,7 @@ export const HomeScreen = ({ navigation, route }) => {
       <Text>
         4. Notification/Alarm activated when buzzer is activated. User has
         option to turn off buzzer
-      </Text>
+      </Text> */}
 
       <FlatList
         data={acl}
@@ -204,7 +334,6 @@ export const HomeScreen = ({ navigation, route }) => {
           <Text style={{ color: "white" }}>Disabled</Text>
         )}
       </TouchableOpacity>
-      <Button title="Disable siren" onPress={disableSiren} />
 
       <Modal
         animationType="slide"
@@ -259,10 +388,22 @@ const Item = ({ title, onClick }) => (
 );
 // ids = [321652097501,785775930251]
 
+async function schedulePushNotification() {
+  await Notifications.scheduleNotificationAsync({
+    content: {
+      title: "INTRUDER ALERT",
+      body: "CIIDS Door security has been bypassed... Siren has activated, please check on your house. If this is an error, please disable the siren",
+      data: { data: "goes here" },
+    },
+    trigger: { seconds: 2 },
+  });
+}
+
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     padding: 10,
+    gap: 10,
     // backgroundColor: "#fff",
     // alignItems: "center",
     // justifyContent: "center",

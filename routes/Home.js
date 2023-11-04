@@ -24,7 +24,7 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowAlert: true,
     shouldPlaySound: false,
-    shouldSetBadge: false,
+    shouldSetBadge: true,
   }),
 });
 async function registerForPushNotificationsAsync() {
@@ -51,7 +51,7 @@ async function registerForPushNotificationsAsync() {
       alert("Failed to get push token for push notification!");
       return;
     }
-    token = (await Notifications.getDevicePushTokenAsync()).data;
+    token = (await Notifications.getExpoPushTokenAsync()).data;
     console.log(token);
   } else {
     alert("Must use physical device for Push Notifications");
